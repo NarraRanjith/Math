@@ -1,23 +1,49 @@
-name: C/C++ CI
+name: release
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version'
+        required: true
+        default: '0.0'
 
 jobs:
-  build:
-
+  release:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+    - name: Set version
+      run: |
+        sed -i 's/#define VERSION "undefined"/#define VERSION "${{ github.event.inputs.version }}"/g' ehdd.c
+    - name: Setup Build Directory
+      run: |
+        mkdir -p ehdd-v${{ github.event.inputs.version }}-x86_64/usr/bin/
+        cd ehdd-v${{ github.event.inputs.version }}-x86_64
+        printf "#\41/bin/sh\ncp ./usr/bin/ehdd /usr/bin/ehdd\n" > install.sh
+        printf "#\41/bin/sh\nrm /usr/bin/ehdd -f\n" > uninstall.sh
+        chmod +x ./install.sh
+        chmod +x ./uninstall.sh
+        cd ..
+    - name: Compile
+      run: |
+        gcc -o ehdd-v${{ github.event.inputs.version }}-x86_64/usr/bin/ehdd ehdd.c -Wall -Wextra -Werror
+    - name: Compress
+      run: |
+        tar -czvf ehdd-v${{ github.event.inputs.version }}-x86_64.tar.gz ehdd-v${{ github.event.inputs.version }}-x86_64/
+    - name: Upload Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: ehdd-v${{ github.event.inputs.version }}
+        tag_name: v${{ github.event.inputs.version }}
+        fail_on_unmatched_files: true
+        files: ehdd-v${{ github.event.inputs.version }}-x86_64.tar.gz
+        draft: true
+        prerelease: false
+Though I understand the syntax, still I am new to it. I of course can develop the code so that I could directly compile the program into a 32-bit executable (maybe these are called elf executables, while 64-bit ones are called elf-64). But the problem here is that I don't even know how to do it on linux, especially when the host machine (or the machine on which the github action is run) is actually a 64-bit one. Maybe I'd need to add some commands that'd first install 32-bit compatibility programs to that 64-bit machine and then compile my program into a 32-bit executable. But if I'll be actually installing those 32-bit compatibility programs on the github server, then I must actually cache them. But I know nothing about the caching system. Please help!
+
+PuppyLinux 🐾 gives new life to old computers ✨
+
+Top
+User avataruser1234
+Re: How to use github workflows to compile a C program for 32-bit linux m
